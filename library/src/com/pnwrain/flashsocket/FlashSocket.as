@@ -1,10 +1,13 @@
 package com.pnwrain.flashsocket
 {
+	import com.pnwrain.flashsocket.events.FlashSocketEvent;
+	
+	import flash.events.EventDispatcher;
 	import flash.system.Security;
 	
 	import mx.utils.URLUtil;
 
-	public class FlashSocket implements IWebSocketWrapper
+	public class FlashSocket extends EventDispatcher implements IWebSocketWrapper
 	{
 		protected var debug:Boolean = true;
 		protected var callerUrl:String;
@@ -85,7 +88,9 @@ package com.pnwrain.flashsocket
 			} else if (message.substr(0, 3) == '~j~'){
 				//this.base._onMessage(JSON.parse(message.substr(3)));
 			} else {
-				//this.emit('message', message);
+				var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
+				fe.data = message;
+				dispatchEvent(fe);
 			}
 		}
 		private function _decode(data:String):Array{
