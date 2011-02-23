@@ -1,0 +1,3 @@
+[submodule "vendor/web-socket-js"]
+	path = vendor/web-socket-js
+	url = git://github.com/simb/web-socket-js.git
