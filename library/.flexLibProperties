@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<flexLibProperties includeAllClasses="true" useMultiPlatformConfig="false" version="3">
-  <includeClasses>
-    <classEntry path="com.pnwrain.flashsocket.FlashSocket"/>
-    <classEntry path="com.pnwrain.flashsocket.events.FlashSocketEvent"/>
-  </includeClasses>
-  <includeResources/>
-  <namespaceManifests/>
-</flexLibProperties>
