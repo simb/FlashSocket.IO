@@ -1,15 +1,19 @@
 package com.pnwrain.flashsocket
 {
+	import com.adobe.serialization.json.JSON;
 	import com.pnwrain.flashsocket.events.FlashSocketEvent;
 	
+	import flash.events.Event;
 	import flash.events.EventDispatcher;
+	import flash.events.IOErrorEvent;
+	import flash.events.SecurityErrorEvent;
 	import flash.system.Security;
 	
 	import mx.utils.URLUtil;
 
 	public class FlashSocket extends EventDispatcher implements IWebSocketWrapper
 	{
-		protected var debug:Boolean = true;
+		protected var debug:Boolean = false;
 		protected var callerUrl:String;
 		protected var socketURL:String;
 		protected var webSocket:WebSocket;
@@ -17,11 +21,33 @@ package com.pnwrain.flashsocket
 		public function FlashSocket( url:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
 		{
 			this.socketURL = url;
-			this.callerUrl = "flash.swf";
+			this.callerUrl = "http://localhost/socket.swf";
 			
 			loadDefaultPolicyFile(url);
 			webSocket = new WebSocket(this, url, protocol, proxyHost, proxyPort, headers);
 			webSocket.addEventListener("event", onData);
+			webSocket.addEventListener(Event.CLOSE, onClose);
+			webSocket.addEventListener(Event.CONNECT, onConnect);
+			webSocket.addEventListener(IOErrorEvent.IO_ERROR, onIoError);
+			webSocket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
+		}
+		
+		protected function onClose(event:Event):void{
+			var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CLOSE);
+			dispatchEvent(fe);
+		}
+		
+		protected function onConnect(event:Event):void{
+			var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CONNECT);
+			dispatchEvent(fe);
+		}
+		protected function onIoError(event:Event):void{
+			var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.IO_ERROR);
+			dispatchEvent(fe);
+		}
+		protected function onSecurityError(event:Event):void{
+			var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.SECURITY_ERROR);
+			dispatchEvent(fe);
 		}
 		
 		protected function loadDefaultPolicyFile(wsUrl:String):void {
@@ -86,11 +112,14 @@ package com.pnwrain.flashsocket
 			} else if (message.substr(0, 3) == '~h~'){
 				this._onHeartbeat(message.substr(3));
 			} else if (message.substr(0, 3) == '~j~'){
-				//this.base._onMessage(JSON.parse(message.substr(3)));
-			} else {
+				var json:String = message.substring(3,message.length);
 				var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
-				fe.data = message;
+				fe.data = JSON.decode(json);
 				dispatchEvent(fe);
+			} else {
+				var fe2:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
+				fe2.data = message;
+				dispatchEvent(fe2);
 			}
 		}
 		private function _decode(data:String):Array{
@@ -104,7 +133,7 @@ package com.pnwrain.flashsocket
 					if (data.substr(i, 1) == n){
 						number += n;
 					} else {	
-						data = data.substr(number.length + frame.length);
+						data = unescape(data.substr(number.length + frame.length));
 						number = Number(number);
 						break;
 					} 
@@ -127,8 +156,8 @@ package com.pnwrain.flashsocket
 		private function _onConnect():void{
 			this.connected = true;
 			this.connecting = false;
-			//this.base._onConnect();
-			//this._setTimeout();
+			var e:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CONNECT);
+			dispatchEvent(e);
 		};
 		
 		private function _encode(messages:*):String{
