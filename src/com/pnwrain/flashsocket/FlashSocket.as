@@ -149,8 +149,15 @@ package com.pnwrain.flashsocket
 			send( enc ); // echo
 		};
 		
-		public function send(msg:String):void{
-			webSocket.send(_encode(msg));
+		public function send(msg:Object):void{
+			
+			if ( msg is String){
+				webSocket.send(_encode(msg));
+			}else if ( msg is Object ){
+				webSocket.send(_encode(JSON.encode(msg), true));
+			}else{
+				throw("Unsupported Message Type");
+			}
 		}
 		
 		private function _onConnect():void{
@@ -160,11 +167,15 @@ package com.pnwrain.flashsocket
 			dispatchEvent(e);
 		};
 		
-		private function _encode(messages:*):String{
-			var ret = '', message,
-				messages =  (messages is Array) ? messages : [messages];
-			for (var i = 0, l = messages.length; i < l; i++){
+		private function _encode(messages:*, json:Boolean=false):String{
+			var ret:String = '',
+				message:String,
+				messages:* =  (messages is Array) ? messages : [messages];
+			for (var i:int = 0, l:int = messages.length; i < l; i++){
 				message = messages[i] === null || messages[i] === undefined ? '' : (messages[i].toString());
+				if ( json ) {
+					message = "~j~" + message;
+				}
 				ret += frame + message.length + frame + message;
 			}
 			return ret;
