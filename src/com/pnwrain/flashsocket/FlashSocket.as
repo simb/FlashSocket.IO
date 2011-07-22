@@ -5,10 +5,15 @@ package com.pnwrain.flashsocket
 	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
+	import flash.events.HTTPStatusEvent;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
+	import flash.net.URLLoader;
+	import flash.net.URLRequest;
+	import flash.net.URLRequestMethod;
 	import flash.system.Security;
 	
+	import mx.collections.ArrayCollection;
 	import mx.utils.URLUtil;
 
 	public class FlashSocket extends EventDispatcher implements IWebSocketWrapper
@@ -18,18 +23,89 @@ package com.pnwrain.flashsocket
 		protected var socketURL:String;
 		protected var webSocket:WebSocket;
 		
-		public function FlashSocket( url:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
+		//vars returned from discovery
+		protected var sessionID:String;
+		protected var heartBeatTimeout:int;
+		protected var connectionClosingTimeout:int;
+		protected var protocols:Array;
+		
+		//hold over variables from constructor for discover to use
+		private var domain:String;
+		private var protocol:String;
+		private var proxyHost:String;
+		private var proxyPort:int;
+		private var headers:String;
+		
+		public function FlashSocket( domain:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
 		{
-			this.socketURL = url;
+			this.socketURL = "ws://" + domain + "/socket.io/1/flashsocket";
 			this.callerUrl = "http://localhost/socket.swf";
 			
-			loadDefaultPolicyFile(url);
-			webSocket = new WebSocket(this, url, protocol, proxyHost, proxyPort, headers);
+			this.domain = domain;
+			this.protocol = protocol;
+			this.proxyHost = proxyHost;
+			this.proxyPort = proxyPort;
+			this.headers = headers;
+			
+			var r:URLRequest = new URLRequest();
+			r.url = "http://" + domain + "/socket.io/1/";
+			r.method = URLRequestMethod.POST;
+			var ul:URLLoader = new URLLoader(r);
+			ul.addEventListener(Event.COMPLETE, onDiscover);
+			ul.addEventListener(HTTPStatusEvent.HTTP_STATUS, onDiscoverError);
+			ul.addEventListener(IOErrorEvent.IO_ERROR , onDiscoverError);
+		}
+		
+		protected function onDiscover(event:Event):void{
+			var response:String = event.target.data;
+			var respData:Array = response.split(":");
+			sessionID = respData[0];
+			heartBeatTimeout = respData[1];
+			connectionClosingTimeout = respData[2];
+			protocols = respData[3].toString().split(",");
+			var flashSupported:Boolean = false;
+			for ( var i:int=0; i<protocols.length; i++ ){
+				if ( protocols[i] == "flashsocket" ){
+					flashSupported = true;
+					break;
+				}
+			}
+			this.socketURL = this.socketURL + "/" + sessionID;
+			
+			/*var r:URLRequest = new URLRequest();
+			r.url = "http://" + domain + "/socket.io/1/flashsocket/" + sessionID;
+			r.method = URLRequestMethod.POST;
+			var ul:URLLoader = new URLLoader(r);
+			ul.addEventListener(Event.COMPLETE, onHandshake);
+			ul.addEventListener(HTTPStatusEvent.HTTP_STATUS, onHandshakeError);
+			ul.addEventListener(IOErrorEvent.IO_ERROR , onHandshakeError);*/
+			onHandshake(event);
+			
+		}
+		protected function onHandshake(event:Event):void{
+			
+			loadDefaultPolicyFile(socketURL);
+			webSocket = new WebSocket(this, socketURL, protocol, proxyHost, proxyPort, headers);
 			webSocket.addEventListener("event", onData);
 			webSocket.addEventListener(Event.CLOSE, onClose);
 			webSocket.addEventListener(Event.CONNECT, onConnect);
 			webSocket.addEventListener(IOErrorEvent.IO_ERROR, onIoError);
 			webSocket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
+		}
+		protected function onDiscoverError(event:Event):void{
+			if ( event is HTTPStatusEvent ){
+				if ( (event as HTTPStatusEvent).status != 200){
+					//we were unsuccessful in connecting to server for discovery
+					trace('discovery error');
+				}
+			}
+		}
+		protected function onHandshakeError(event:Event):void{
+			if ( event is HTTPStatusEvent ){
+				if ( (event as HTTPStatusEvent).status != 200){
+					//we were unsuccessful in connecting to server for discovery
+				}
+			}
 		}
 		
 		protected function onClose(event:Event):void{
