@@ -8,13 +8,17 @@ package com.pnwrain.flashsocket
 	import flash.events.HTTPStatusEvent;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
+	import flash.events.TimerEvent;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.net.URLRequestMethod;
 	import flash.system.Security;
+	import flash.utils.Timer;
 	
 	import mx.collections.ArrayCollection;
 	import mx.utils.URLUtil;
+	
+	import org.osmf.events.TimeEvent;
 
 	public class FlashSocket extends EventDispatcher implements IWebSocketWrapper
 	{
@@ -24,7 +28,7 @@ package com.pnwrain.flashsocket
 		protected var webSocket:WebSocket;
 		
 		//vars returned from discovery
-		protected var sessionID:String;
+		public var sessionID:String;
 		protected var heartBeatTimeout:int;
 		protected var connectionClosingTimeout:int;
 		protected var protocols:Array;
@@ -35,6 +39,7 @@ package com.pnwrain.flashsocket
 		private var proxyHost:String;
 		private var proxyPort:int;
 		private var headers:String;
+		private var timer:Timer;
 		
 		public function FlashSocket( domain:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
 		{
@@ -63,6 +68,11 @@ package com.pnwrain.flashsocket
 			heartBeatTimeout = respData[1];
 			connectionClosingTimeout = respData[2];
 			protocols = respData[3].toString().split(",");
+			
+			timer = new Timer( Math.ceil(heartBeatTimeout*.75)*1000);
+			timer.addEventListener(TimerEvent.TIMER, onHeartBeatTimer);
+			//timer.start();
+			
 			var flashSupported:Boolean = false;
 			for ( var i:int=0; i<protocols.length; i++ ){
 				if ( protocols[i] == "flashsocket" ){
@@ -72,13 +82,7 @@ package com.pnwrain.flashsocket
 			}
 			this.socketURL = this.socketURL + "/" + sessionID;
 			
-			/*var r:URLRequest = new URLRequest();
-			r.url = "http://" + domain + "/socket.io/1/flashsocket/" + sessionID;
-			r.method = URLRequestMethod.POST;
-			var ul:URLLoader = new URLLoader(r);
-			ul.addEventListener(Event.COMPLETE, onHandshake);
-			ul.addEventListener(HTTPStatusEvent.HTTP_STATUS, onHandshakeError);
-			ul.addEventListener(IOErrorEvent.IO_ERROR , onHandshakeError);*/
+			
 			onHandshake(event);
 			
 		}
@@ -92,6 +96,10 @@ package com.pnwrain.flashsocket
 			webSocket.addEventListener(IOErrorEvent.IO_ERROR, onIoError);
 			webSocket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityError);
 		}
+		protected function onHeartBeatTimer(event:TimerEvent):void{
+			this._onHeartbeat();
+		}
+		
 		protected function onDiscoverError(event:Event):void{
 			if ( event is HTTPStatusEvent ){
 				if ( (event as HTTPStatusEvent).status != 200){
@@ -166,37 +174,70 @@ package com.pnwrain.flashsocket
 			
 			if ( data.type == "message" ){
 				this._setTimeout();
-				var msgs:Array = this._decode(data.data);
-				if (msgs && msgs.length){
-					for (var i:int = 0, l:int = msgs.length; i < l; i++){
-						this._onMessage(msgs[i]);
-					}
+				var msg:String = unescape(data.data);
+				if (msg){
+					this._onMessage(msg);
 				}
 			}
 		}
 		private function _setTimeout():void{
 			
 		}
-		public var sessionid:String;
+		
 		public var connected:Boolean;
 		public var connecting:Boolean;
 		
 		private function _onMessage(message:String):void{
-			if (!this.sessionid){
-				this.sessionid = message;
-				this._onConnect();
-			} else if (message.substr(0, 3) == '~h~'){
-				this._onHeartbeat(message.substr(3));
-			} else if (message.substr(0, 3) == '~j~'){
-				var json:String = message.substring(3,message.length);
-				var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
-				fe.data = JSON.decode(json);
-				dispatchEvent(fe);
-			} else {
-				var fe2:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
-				fe2.data = message;
-				dispatchEvent(fe2);
+			//https://github.com/LearnBoost/socket.io-spec#Encoding
+			/*	0		Disconnect
+				1::	Connect
+				2::	Heartbeat
+				3:: Message
+				4:: Json Message
+				5:: Event
+				6	Ack
+				7	Error
+				8	noop
+			*/
+			var dm:Object = deFrame(message);
+			
+			switch ( dm.type ){
+				case '0':
+					this._onDisconnect();
+					break;
+				case '1':
+					this._onConnect();
+					break;
+				case '2':
+					this._onHeartbeat();
+					break;
+				case '3':
+					var fem:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
+					fem.data = dm.msg;
+					dispatchEvent(fem);
+					break;
+				case '4':
+					var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.MESSAGE);
+					fe.data = JSON.decode(dm.msg);
+					dispatchEvent(fe);
+					break;
+				case '5':
+					var m:Object = JSON.decode(dm.msg);
+					var e:FlashSocketEvent = new FlashSocketEvent(m.name);
+					e.data = m.args;
+					dispatchEvent(e);
+					break;
+					
 			}
+			
+		}
+		protected function deFrame(message:String):Object{
+			var si:int = 0;
+			for ( var i5:int=0;i5<3;i5++){
+				si = message.indexOf(":",si+1);
+			}
+			var ds:String = message.substring(si+1,message.length);
+			return {type: message.substr(0, 1), msg: ds};
 		}
 		private function _decode(data:String):Array{
 			var messages:Array = [], number:*, n:*;
@@ -220,26 +261,37 @@ package com.pnwrain.flashsocket
 			return messages;
 		}
 		
-		private function _onHeartbeat(heartbeat:*):void{
-			var enc:String = '~h~' + heartbeat;
-			send( enc ); // echo
+		private function _onHeartbeat():void{
+			webSocket.send( '2::' ); // echo
 		};
 		
-		public function send(msg:Object):void{
+		public function send(msg:Object, event:String = null):void{
 			
-			if ( msg is String){
-				webSocket.send(_encode(msg));
-			}else if ( msg is Object ){
-				webSocket.send(_encode(JSON.encode(msg), true));
+			if ( event == null ){
+				if ( msg is String){
+					//webSocket.send(_encode(msg));
+					webSocket.send('3:::' + msg as String);
+				}else if ( msg is Object ){
+					webSocket.send('4:::' + JSON.encode(msg));
+				}else{
+					throw("Unsupported Message Type");
+				}
 			}else{
-				throw("Unsupported Message Type");
+				webSocket.send('5:::' + JSON.encode({"name":event,"args":msg}));
 			}
+			
 		}
 		
 		private function _onConnect():void{
 			this.connected = true;
 			this.connecting = false;
 			var e:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CONNECT);
+			dispatchEvent(e);
+		};
+		private function _onDisconnect():void{
+			this.connected = false;
+			this.connecting = false;
+			var e:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.DISCONNECT);
 			dispatchEvent(e);
 		};
 		

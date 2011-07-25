@@ -9,6 +9,7 @@ package com.pnwrain.flashsocket.events
 		public static const MESSAGE:String = "message";
 		public static const IO_ERROR:String = "ioError";
 		public static const SECURITY_ERROR:String = "securityError";
+		public static const DISCONNECT:String = "disconnect";
 		
 		public var data:*;
 		
