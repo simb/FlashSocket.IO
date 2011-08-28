@@ -11,3 +11,8 @@ This project wraps that and facilitates the hearbeat and en/decoding of messages
 Because this project makes use of git submodules you must make use of the recursive clone.
 
 git clone --recursive git://github.com/simb/FlashSocket.IO.git
+
+# Building
+
+Because this library is dependent on the websocket library, you must add the support/websocket-js path to you source path in flash builder or your build files.
+
