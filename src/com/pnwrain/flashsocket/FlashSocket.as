@@ -17,8 +17,6 @@ package com.pnwrain.flashsocket
 	
 	import mx.collections.ArrayCollection;
 	import mx.utils.URLUtil;
-	
-	import org.osmf.events.TimeEvent;
 
 	public class FlashSocket extends EventDispatcher implements IWebSocketWrapper
 	{
