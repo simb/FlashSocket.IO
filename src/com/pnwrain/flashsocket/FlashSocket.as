@@ -102,7 +102,8 @@ package com.pnwrain.flashsocket
 			if ( event is HTTPStatusEvent ){
 				if ( (event as HTTPStatusEvent).status != 200){
 					//we were unsuccessful in connecting to server for discovery
-					trace('discovery error');
+					var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CONNECT_ERROR);
+					dispatchEvent(fe);
 				}
 			}
 		}
@@ -110,6 +111,8 @@ package com.pnwrain.flashsocket
 			if ( event is HTTPStatusEvent ){
 				if ( (event as HTTPStatusEvent).status != 200){
 					//we were unsuccessful in connecting to server for discovery
+					var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CONNECT_ERROR);
+					dispatchEvent(fe);
 				}
 			}
 		}
