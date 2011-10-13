@@ -179,6 +179,14 @@ package com.pnwrain.flashsocket
 				if (msg){
 					this._onMessage(msg);
 				}
+			}else if ( data.type == "open") {
+				//this is good I think
+			}else if ( data.type == "close" ){
+				var fe:FlashSocketEvent = new FlashSocketEvent(FlashSocketEvent.CLOSE);
+				dispatchEvent(fe);
+			}else{
+				
+				log("We got a data message that is not 'message': " + data.type);
 			}
 		}
 		private function _setTimeout():void{
