@@ -51,12 +51,13 @@ package com.pnwrain.flashsocket
 			this.headers = headers;
 			
 			var r:URLRequest = new URLRequest();
-			r.url = "http://" + domain + "/socket.io/1/";
+			r.url = "http://" + domain + "/socket.io/1/?time=" + new Date().getTime();
 			r.method = URLRequestMethod.POST;
 			var ul:URLLoader = new URLLoader(r);
 			ul.addEventListener(Event.COMPLETE, onDiscover);
 			ul.addEventListener(HTTPStatusEvent.HTTP_STATUS, onDiscoverError);
 			ul.addEventListener(IOErrorEvent.IO_ERROR , onDiscoverError);
+
 		}
 		
 		protected function onDiscover(event:Event):void{
