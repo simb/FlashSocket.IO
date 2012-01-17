@@ -39,6 +39,10 @@ package com.pnwrain.flashsocket
 		private var headers:String;
 		private var timer:Timer;
 		
+		private var ackRegexp:RegExp = new RegExp('(\\d+)\\+(.*)');
+		private var ackId:int = 0;
+		private var acks:Object = { };
+		
 		public function FlashSocket( domain:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
 		{
 			this.socketURL = "ws://" + domain + "/socket.io/1/flashsocket";
@@ -237,6 +241,22 @@ package com.pnwrain.flashsocket
 					e.data = m.args;
 					dispatchEvent(e);
 					break;
+				case '6':
+					var parts:Object =  this.ackRegexp.exec(dm.msg);
+					var id:int = int(parts[1]);
+					var args:Array = JSON.decode(parts[2]);
+					if (this.acks.hasOwnProperty(id)) {
+						var func:Function = this.acks[id] as Function;
+						//pass however many args the function is looking for back to it
+						if (args.length >  func.length) {
+							func.apply(null, args.slice(0, func.length));
+						} else {
+							func.apply(null,args);
+						}
+						
+						delete  this.acks[id];
+					}
+					break;
 					
 			}
 			
@@ -275,21 +295,32 @@ package com.pnwrain.flashsocket
 			webSocket.send( '2::' ); // echo
 		};
 		
-		public function send(msg:Object, event:String = null):void{
+		public function send(msg:Object, event:String = null,callback:Function = null):void{
+			var messageId: String = "";
+			
+			if (null != callback) {
+				//%2B is urlencode(+)
+				messageId = this.ackId.toString() + '%2B';
+				this.acks[this.ackId] = callback;
+				this.ackId++;
+			}
 			
 			if ( event == null ){
 				if ( msg is String){
 					//webSocket.send(_encode(msg));
-					webSocket.send('3:::' + msg as String);
+					webSocket.send('3:'+messageId+'::' + msg as String);
 				}else if ( msg is Object ){
-					webSocket.send('4:::' + JSON.encode(msg));
+					webSocket.send('4:'+messageId+'::' + JSON.encode(msg));
 				}else{
 					throw("Unsupported Message Type");
 				}
 			}else{
-				webSocket.send('5:::' + JSON.encode({"name":event,"args":msg}));
+				webSocket.send('5:'+messageId+'::' + JSON.encode({"name":event,"args":msg}));
 			}
-			
+		}
+		
+		public function emit(event:String, msg:Object,  callback:Function = null):void{
+			send(msg, event, callback) 
 		}
 		
 		private function _onConnect():void{
