@@ -45,8 +45,21 @@ package com.pnwrain.flashsocket
 		
 		public function FlashSocket( domain:String, protocol:String=null, proxyHost:String = null, proxyPort:int = 0, headers:String = null)
 		{
-			this.socketURL = "ws://" + domain + "/socket.io/1/flashsocket";
-			this.callerUrl = "http://localhost/socket.swf";
+			var httpProtocal:String = "http";
+			var webSocketProtocal:String = "ws";
+			
+			if (URLUtil.isHttpsURL(domain)) {
+				httpProtocal = "https";
+				webSocketProtocal = "wss";
+			}
+			
+			//if the user passed in http:// or https:// we want to strip that out
+			if(domain.indexOf('://')>=0){
+				domain = URLUtil.getServerNameWithPort(domain);
+			}
+
+			this.socketURL = webSocketProtocal+"://" + domain + "/socket.io/1/flashsocket";
+			this.callerUrl = httpProtocal+"://localhost/socket.swf";
 			
 			this.domain = domain;
 			this.protocol = protocol;
@@ -55,7 +68,7 @@ package com.pnwrain.flashsocket
 			this.headers = headers;
 			
 			var r:URLRequest = new URLRequest();
-			r.url = "http://" + domain + "/socket.io/1/?time=" + new Date().getTime();
+			r.url = httpProtocal+"://" + domain + "/socket.io/1/?time=" + new Date().getTime();
 			r.method = URLRequestMethod.POST;
 			var ul:URLLoader = new URLLoader(r);
 			ul.addEventListener(Event.COMPLETE, onDiscover);
