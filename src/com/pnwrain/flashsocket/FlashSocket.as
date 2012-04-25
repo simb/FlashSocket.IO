@@ -193,7 +193,7 @@ package com.pnwrain.flashsocket
 			
 			if ( data.type == "message" ){
 				this._setTimeout();
-				var msg:String = unescape(data.data);
+				var msg:String = decodeURIComponent(data.data);
 				if (msg){
 					this._onMessage(msg);
 				}
